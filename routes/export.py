@@ -3,7 +3,7 @@ import os
 import pandas as pd
 from datetime import datetime
 from config import Config
-from state import session_data, data_lock
+from state import get_session_data
 from models.gaussian_model import GaussianPlumeModel
 
 export_bp = Blueprint('export', __name__)
@@ -14,6 +14,7 @@ def serve_output(filename):
 
 @export_bp.route('/api/export-excel', methods=['POST'])
 def export_excel():
+    session_data = get_session_data()
     roads = session_data.get('roads', [])
     weather_data = session_data.get('weather_data')
     if not roads or weather_data is None: return jsonify({'error': 'Data not loaded'}), 500

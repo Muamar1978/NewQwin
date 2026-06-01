@@ -1,0 +1,13 @@
+OpenBLAS WARNING - could not determine the L2 cache size on this system, assuming 256k
+Air Quality Dispersion Model - Modularized Version
+ * Serving Flask app 'app'
+ * Debug mode: on
+WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
+ * Running on http://127.0.0.1:5000
+Press CTRL+C to quit
+ * Restarting with stat
+OpenBLAS WARNING - could not determine the L2 cache size on this system, assuming 256k
+ * Debugger is active!
+ * Debugger PIN: 869-631-082
+127.0.0.1 - - [01/Jun/2026 15:47:30] "GET / HTTP/1.1" 200 -
+127.0.0.1 - - [01/Jun/2026 15:47:32] "GET /api/data-status HTTP/1.1" 200 -

@@ -3,12 +3,17 @@ import json
 import os
 from config import Config
 
-# Initialize Flask-Caching with filesystem backend for thread-safe state management
-cache = Cache(config={
-    'CACHE_TYPE': 'filesystem',
-    'CACHE_DIR': os.path.join(Config.DATA_DIR, 'cache'),
-    'CACHE_DEFAULT_TIMEOUT': 3600  # 1 hour default timeout
-})
+# This cache object will be initialized by the Flask app in app.py
+# We create a placeholder here that gets bound to the app's cache
+cache = Cache()
+
+def init_cache(app):
+    """Initialize the cache with the Flask app."""
+    cache.init_app(app, config={
+        'CACHE_TYPE': 'filesystem',
+        'CACHE_DIR': os.path.join(Config.DATA_DIR, 'cache'),
+        'CACHE_DEFAULT_TIMEOUT': 3600  # 1 hour default timeout
+    })
 
 def get_session_data(session_id='default'):
     """Get session data from cache."""

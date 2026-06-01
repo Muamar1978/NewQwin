@@ -6,6 +6,7 @@ from routes.data import data_bp
 from routes.simulation import sim_bp
 from routes.forecast import forecast_bp
 from routes.export import export_bp
+from state import init_cache
 import os
 
 app = Flask(__name__)
@@ -18,6 +19,9 @@ cache = Cache(app, config={
     'CACHE_DIR': os.path.join(Config.DATA_DIR, 'cache'),
     'CACHE_DEFAULT_TIMEOUT': 3600
 })
+
+# Initialize the shared cache object in state module
+init_cache(app)
 
 # Register Blueprints
 app.register_blueprint(data_bp)
