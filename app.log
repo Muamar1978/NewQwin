@@ -1,0 +1,52 @@
+WARNING: All log messages before absl::InitializeLog() is called are written to STDERR
+I0000 00:00:1776612810.682858    7815 cudart_stub.cc:31] Could not find cuda drivers on your machine, GPU will not be used.
+WARNING: All log messages before absl::InitializeLog() is called are written to STDERR
+I0000 00:00:1776612811.647632    7815 cudart_stub.cc:31] Could not find cuda drivers on your machine, GPU will not be used.
+Air Quality Dispersion Model - Modularized Version
+ * Serving Flask app 'app'
+ * Debug mode: on
+WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
+ * Running on http://127.0.0.1:5000
+Press CTRL+C to quit
+ * Restarting with stat
+WARNING: All log messages before absl::InitializeLog() is called are written to STDERR
+I0000 00:00:1776612813.485537    7850 cudart_stub.cc:31] Could not find cuda drivers on your machine, GPU will not be used.
+WARNING: All log messages before absl::InitializeLog() is called are written to STDERR
+I0000 00:00:1776612814.415862    7850 cudart_stub.cc:31] Could not find cuda drivers on your machine, GPU will not be used.
+ * Debugger is active!
+ * Debugger PIN: 538-105-091
+127.0.0.1 - - [19/Apr/2026 18:34:39] "GET / HTTP/1.1" 200 -
+127.0.0.1 - - [19/Apr/2026 18:34:39] "GET /static/css/font-awesome.min.css?v=4.0 HTTP/1.1" 304 -
+127.0.0.1 - - [19/Apr/2026 18:34:39] "GET /static/css/leaflet.css?v=4.0 HTTP/1.1" 304 -
+127.0.0.1 - - [19/Apr/2026 18:34:39] "GET /static/css/main.css?v=4.0 HTTP/1.1" 304 -
+127.0.0.1 - - [19/Apr/2026 18:34:39] "GET /static/js/leaflet.js?v=4.0 HTTP/1.1" 304 -
+127.0.0.1 - - [19/Apr/2026 18:34:39] "GET /static/js/chart.js?v=4.0 HTTP/1.1" 304 -
+127.0.0.1 - - [19/Apr/2026 18:34:39] "GET /static/js/main.js?v=4.0 HTTP/1.1" 304 -
+127.0.0.1 - - [19/Apr/2026 18:34:39] "GET /static/webfonts/fa-solid-900.woff2 HTTP/1.1" 304 -
+127.0.0.1 - - [19/Apr/2026 18:34:39] "GET /api/data-status HTTP/1.1" 200 -
+127.0.0.1 - - [19/Apr/2026 18:34:39] "GET /api/weather HTTP/1.1" 200 -
+127.0.0.1 - - [19/Apr/2026 18:34:49] "POST /api/upload-roads HTTP/1.1" 200 -
+127.0.0.1 - - [19/Apr/2026 18:34:49] "GET /api/data-status HTTP/1.1" 200 -
+127.0.0.1 - - [19/Apr/2026 18:34:49] "GET /api/roads HTTP/1.1" 200 -
+127.0.0.1 - - [19/Apr/2026 18:34:49] "GET /api/study-area HTTP/1.1" 200 -
+127.0.0.1 - - [19/Apr/2026 18:34:49] "GET /api/data-status HTTP/1.1" 200 -
+127.0.0.1 - - [19/Apr/2026 18:34:49] "GET /api/roads HTTP/1.1" 200 -
+127.0.0.1 - - [19/Apr/2026 18:34:58] "POST /api/upload-weather HTTP/1.1" 400 -
+ * Detected change in '/home/muamar78/Desktop/GPAI/routes/data.py', reloading
+Air Quality Dispersion Model - Modularized Version
+ * Restarting with stat
+WARNING: All log messages before absl::InitializeLog() is called are written to STDERR
+I0000 00:00:1776612934.231982    8244 cudart_stub.cc:31] Could not find cuda drivers on your machine, GPU will not be used.
+WARNING: All log messages before absl::InitializeLog() is called are written to STDERR
+I0000 00:00:1776612935.195142    8244 cudart_stub.cc:31] Could not find cuda drivers on your machine, GPU will not be used.
+ * Debugger is active!
+ * Debugger PIN: 538-105-091
+ * Detected change in '/home/muamar78/Desktop/GPAI/routes/data.py', reloading
+Air Quality Dispersion Model - Modularized Version
+ * Restarting with stat
+WARNING: All log messages before absl::InitializeLog() is called are written to STDERR
+I0000 00:00:1776612943.537237    8287 cudart_stub.cc:31] Could not find cuda drivers on your machine, GPU will not be used.
+WARNING: All log messages before absl::InitializeLog() is called are written to STDERR
+I0000 00:00:1776612944.504452    8287 cudart_stub.cc:31] Could not find cuda drivers on your machine, GPU will not be used.
+ * Debugger is active!
+ * Debugger PIN: 538-105-091
