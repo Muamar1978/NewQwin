@@ -5,14 +5,19 @@ import geopandas as gpd
 from pyproj import Transformer
 import os
 from datetime import datetime
-from config import Config
 from concurrent.futures import ProcessPoolExecutor
 import multiprocessing
+
 try:
     from skimage import measure
     HAS_SKIMAGE = True
 except ImportError:
     HAS_SKIMAGE = False
+
+# Import Config at the module level for path resolution
+import sys
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from config import Config
 
 def simple_gaussian_blur(grid):
     """Pure NumPy 3x3 Gaussian blur to avoid hanging scipy.ndimage"""

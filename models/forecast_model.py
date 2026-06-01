@@ -11,6 +11,11 @@ warnings.filterwarnings("ignore", module="matplotlib")
 
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 
+# Import Config at the module level for path resolution
+import sys
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from config import Config
+
 # Top-level tensorflow imports disabled to prevent hanging on some systems
 class MockLayer:
     def __init__(self, *args, **kwargs): pass

@@ -6,8 +6,8 @@ import zipfile
 from datetime import datetime
 from config import Config
 from state import session_data, data_lock
-from forecast_model import AirQualityForecastModel
-from gaussian_model import GaussianPlumeModel
+from models.forecast_model import AirQualityForecastModel
+from models.gaussian_model import GaussianPlumeModel
 import geopandas as gpd
 # from sklearn.preprocessing import MinMaxScaler
 

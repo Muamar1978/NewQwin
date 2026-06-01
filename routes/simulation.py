@@ -7,7 +7,7 @@ import zipfile
 from datetime import datetime
 from config import Config
 from state import session_data, data_lock
-from gaussian_model import GaussianPlumeModel
+from models.gaussian_model import GaussianPlumeModel
 from services.weather_service import fetch_live_weather
 
 sim_bp = Blueprint('simulation', __name__)

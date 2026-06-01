@@ -4,7 +4,7 @@ import pandas as pd
 from datetime import datetime
 from config import Config
 from state import session_data, data_lock
-from gaussian_model import GaussianPlumeModel
+from models.gaussian_model import GaussianPlumeModel
 
 export_bp = Blueprint('export', __name__)
 
