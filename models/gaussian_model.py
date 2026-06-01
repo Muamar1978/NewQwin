@@ -45,7 +45,7 @@ import warnings
 warnings.filterwarnings("ignore", module="matplotlib")
 
 class GaussianPlumeModel:
-    def __init__(self, road_data, weather_data, emission_factors=None):
+    def __init__(self, road_data, weather_data, emission_factors=None, target_crs=None):
         if road_data is None:
             raise ValueError("Road data cannot be None")
         if weather_data is None:
@@ -54,7 +54,13 @@ class GaussianPlumeModel:
         self.road_data = road_data
         self.weather_data = weather_data
         self.ugm_to_m = 1e-6
-        self.transformer = Transformer.from_crs(Config.DEFAULT_CRS, Config.WGS84_CRS, always_xy=True)
+        
+        # Dynamic CRS handling: auto-detect UTM zone from road data centroid if not specified
+        if target_crs is None:
+            target_crs = self._auto_detect_utm_crs(road_data)
+        
+        self.target_crs = target_crs
+        self.transformer = Transformer.from_crs(self.target_crs, Config.WGS84_CRS, always_xy=True)
         
         # Convert emission_factors list of dicts to a dictionary for fast lookup
         self.emission_factors = {}
@@ -64,6 +70,55 @@ class GaussianPlumeModel:
                     self.emission_factors[item['pollutant']] = item['emission_factor']
         
         self.EPSILON = 0.5 # Minimum wind speed to prevent division by zero
+    
+    def _auto_detect_utm_crs(self, road_data):
+        """
+        Automatically detect the appropriate UTM zone based on the centroid of the road data.
+        Returns an EPSG code string for the local UTM zone.
+        """
+        try:
+            # Collect all road geometries to find centroid
+            all_geoms = []
+            for road_gdf in road_data:
+                if road_gdf is not None and len(road_gdf) > 0:
+                    for geom in road_gdf.geometry:
+                        if geom is not None:
+                            all_geoms.append(geom)
+            
+            if not all_geoms:
+                print("Warning: No valid road geometries found, using default WGS84")
+                return Config.DEFAULT_CRS
+            
+            # Create a GeoSeries to calculate centroid
+            from geopandas import GeoSeries
+            gs = GeoSeries(all_geoms)
+            
+            # Get centroid in WGS84 (EPSG:4326)
+            # First transform to WGS84 if needed
+            if road_data[0].crs is not None:
+                gs_wgs84 = gs.to_crs(epsg=4326)
+            else:
+                # Assume already in WGS84 if no CRS specified
+                gs_wgs84 = gs
+            
+            centroid = gs_wgs84.unary_union.centroid
+            lon, lat = centroid.x, centroid.y
+            
+            # Calculate UTM zone from longitude
+            utm_zone = int((lon + 180) / 6) + 1
+            
+            # Determine hemisphere (North or South)
+            is_northern = lat >= 0
+            
+            # Build EPSG code: 326XX for Northern, 327XX for Southern
+            epsg_code = 32600 + utm_zone if is_northern else 32700 + utm_zone
+            
+            print(f"Auto-detected UTM zone: EPSG:{epsg_code} (Zone {utm_zone}, {'Northern' if is_northern else 'Southern'} Hemisphere)")
+            return f"EPSG:{epsg_code}"
+            
+        except Exception as e:
+            print(f"Warning: Could not auto-detect UTM zone ({e}), using default WGS84")
+            return Config.DEFAULT_CRS
 
     
     def calculate_stability_class(self, wind_speed, is_day=True, cloud_cover=0.5, solar_radiation='moderate'):
@@ -171,46 +226,65 @@ class GaussianPlumeModel:
         # Convert g/m³ to µg/m³ (standard air quality unit)
         return max(concentration * 1e6, 0.0)
     def calculate_concentration_vectorized(self, gx, gy, sx, sy, wind_speed, wind_dir, 
-                                          emission_rate, stability_class, z=0, mixing_height=1000, background_concentration=0.0):
-        """Vectorized calculation of concentrations for all grid points and all source points"""
+                                          emission_rate, stability_class, z=0, mixing_height=1000, background_concentration=0.0, chunk_size=10000):
+        """
+        Chunked calculation of concentrations to fix Out-Of-Memory (OOM) bug.
+        Processes grid points in batches of chunk_size (default 10,000) to ensure 
+        RAM usage remains flat regardless of grid size.
+        """
         # gx, gy: shape (N_grid,)
         # sx, sy: shape (N_sources,)
         
-        # Broadcasting to create matrices: (N_grid, N_sources)
-        dx = gx[:, np.newaxis] - sx[np.newaxis, :]
-        dy = gy[:, np.newaxis] - sy[np.newaxis, :]
+        n_grid = len(gx)
+        results = []
         
-        dist = np.sqrt(dx**2 + dy**2)
+        # Process grid points in chunks to avoid OOM
+        for i in range(0, n_grid, chunk_size):
+            end_idx = min(i + chunk_size, n_grid)
+            gx_chunk = gx[i:end_idx]
+            gy_chunk = gy[i:end_idx]
+            
+            # Broadcasting for this chunk only: (chunk_size, N_sources)
+            dx = gx_chunk[:, np.newaxis] - sx[np.newaxis, :]
+            dy = gy_chunk[:, np.newaxis] - sy[np.newaxis, :]
+            
+            dist = np.sqrt(dx**2 + dy**2)
+            
+            wind_rad = np.radians(270 - wind_dir)
+            x_downwind = dx * np.cos(wind_rad) + dy * np.sin(wind_rad)
+            y_crosswind = -dx * np.sin(wind_rad) + dy * np.cos(wind_rad)
+            
+            # Mask for points that are too close or upwind
+            mask = (dist >= 1) & (x_downwind > 0)
+            
+            # Calculate dispersion coefficients for valid pairs
+            sigma_y, sigma_z = self.get_dispersion_coefficients(stability_class, x_downwind)
+            
+            sigma_y = np.maximum(sigma_y, 1.0)
+            sigma_z = np.maximum(sigma_z, 0.5)
+            
+            u = np.maximum(wind_speed, self.EPSILON)
+            
+            # Plume Equation (Q in g/s, u in m/s → C in g/m³)
+            term1 = emission_rate / (2 * np.pi * u * sigma_y * sigma_z)
+            term2 = np.exp(-y_crosswind**2 / (2 * sigma_y**2))
+            
+            z_diff = z
+            term3 = np.exp(-z_diff**2 / (2 * sigma_z**2))
+            term4 = np.exp(-(2 * mixing_height - z_diff)**2 / (2 * sigma_z**2))
+            
+            # Multiply by mask to zero out invalid points
+            concentrations = mask * term1 * term2 * (term3 + term4)
+            
+            # Sum across sources for each grid point in this chunk
+            chunk_total = np.sum(concentrations, axis=1)
+            results.append(chunk_total)
+            
+            # Explicit cleanup
+            del dx, dy, dist, x_downwind, y_crosswind, mask, sigma_y, sigma_z, concentrations
         
-        wind_rad = np.radians(270 - wind_dir)
-        x_downwind = dx * np.cos(wind_rad) + dy * np.sin(wind_rad)
-        y_crosswind = -dx * np.sin(wind_rad) + dy * np.cos(wind_rad)
-        
-        # Mask for points that are too close or upwind
-        mask = (dist >= 1) & (x_downwind > 0)
-        
-        # Calculate dispersion coefficients for all valid pairs
-        # x_downwind has shape (N_grid, N_sources)
-        sigma_y, sigma_z = self.get_dispersion_coefficients(stability_class, x_downwind)
-        
-        sigma_y = np.maximum(sigma_y, 1.0)
-        sigma_z = np.maximum(sigma_z, 0.5)
-        
-        u = np.maximum(wind_speed, self.EPSILON)
-        
-        # Plume Equation (Q in g/s, u in m/s → C in g/m³)
-        term1 = emission_rate / (2 * np.pi * u * sigma_y * sigma_z)
-        term2 = np.exp(-y_crosswind**2 / (2 * sigma_y**2))
-        
-        z_diff = z
-        term3 = np.exp(-z_diff**2 / (2 * sigma_z**2))
-        term4 = np.exp(-(2 * mixing_height - z_diff)**2 / (2 * sigma_z**2))
-        
-        # Multiply by mask to zero out invalid points
-        concentrations = mask * term1 * term2 * (term3 + term4)
-        
-        # Sum across sources for each grid point
-        total_conc = np.sum(concentrations, axis=1)
+        # Concatenate all chunk results
+        total_conc = np.concatenate(results)
         
         # Convert g/m³ to µg/m³ (standard air quality unit) and add background concentration
         return (total_conc * 1e6) + background_concentration

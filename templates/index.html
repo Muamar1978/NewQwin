@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Air Quality Dispersion Model</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/leaflet.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/font-awesome.min.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
+</head>
+<body>
+    <div id="app">
+        <header>
+            <h1><i class="fas fa-cloud"></i> Air Quality Dispersion Model</h1>
+            <nav>
+                <button class="nav-btn active" data-tab="dashboard"><i class="fas fa-tachometer-alt"></i> Dashboard</button>
+                <button class="nav-btn" data-tab="data"><i class="fas fa-database"></i> Data Management</button>
+                <button class="nav-btn" data-tab="simulation"><i class="fas fa-cog"></i> Simulation</button>
+                <button class="nav-btn" data-tab="forecast"><i class="fas fa-chart-line"></i> Forecast</button>
+                <button class="nav-btn" data-tab="export"><i class="fas fa-download"></i> Export</button>
+            </nav>
+        </header>
+
+        <main>
+            <!-- Dashboard Tab -->
+            <section id="dashboard" class="tab-content active">
+                <div class="dashboard-grid">
+                    <div class="map-container">
+                        <div id="map"></div>
+                    </div>
+                    <div class="info-panel">
+                        <div class="card">
+                            <h3><i class="fas fa-road"></i> Roads</h3>
+                            <p id="roads-count">0</p>
+                        </div>
+                        <div class="card">
+                            <h3><i class="fas fa-cloud-sun"></i> Weather Data</h3>
+                            <p id="weather-status">Not Loaded</p>
+                        </div>
+                        <div class="card">
+                            <h3><i class="fas fa-map-marked-alt"></i> Study Area</h3>
+                            <p id="study-area-status">Not Loaded</p>
+                        </div>
+                        <div class="card">
+                            <h3><i class="fas fa-smog"></i> Pollution Data</h3>
+                            <p id="pollution-status">Not Loaded</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Data Management Tab -->
+            <section id="data" class="tab-content">
+                <div class="data-management">
+                    <div class="upload-section">
+                        <h3><i class="fas fa-upload"></i> Upload Data</h3>
+                        <div class="upload-grid">
+                            <div class="upload-card">
+                                <h4>Road Network</h4>
+                                <input type="file" id="road-file" accept=".shp,.dbf,.shx,.prj">
+                                <button onclick="uploadRoads()"><i class="fas fa-upload"></i> Upload</button>
+                            </div>
+                            <div class="upload-card">
+                                <h4>Study Area</h4>
+                                <input type="file" id="study-area-file" accept=".shp,.dbf,.shx,.prj">
+                                <button onclick="uploadStudyArea()"><i class="fas fa-upload"></i> Upload</button>
+                            </div>
+                            <div class="upload-card">
+                                <h4>Weather Data</h4>
+                                <input type="file" id="weather-file" accept=".csv">
+                                <button onclick="uploadWeather()"><i class="fas fa-upload"></i> Upload</button>
+                            </div>
+                            <div class="upload-card">
+                                <h4>Pollution Data</h4>
+                                <input type="file" id="pollution-file" accept=".csv,.xlsx">
+                                <button onclick="uploadPollution()"><i class="fas fa-upload"></i> Upload</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Simulation Tab -->
+            <section id="simulation" class="tab-content">
+                <div class="simulation-controls">
+                    <h3><i class="fas fa-cog"></i> Run Simulation</h3>
+                    <div class="form-group">
+                        <label>Pollutant:</label>
+                        <select id="pollutant">
+                            <option value="CO">CO (Carbon Monoxide)</option>
+                            <option value="NOx">NOx (Nitrogen Oxides)</option>
+                            <option value="PM">PM (Particulate Matter)</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Time Period:</label>
+                        <select id="time-period">
+                            <option value="morning">Morning Rush Hour</option>
+                            <option value="midday">Midday</option>
+                            <option value="evening">Evening Rush Hour</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Duration:</label>
+                        <select id="duration">
+                            <option value="1hr">1 Hour</option>
+                            <option value="annual">Annual Average</option>
+                        </select>
+                    </div>
+                    <button onclick="runSimulation()" class="btn-primary"><i class="fas fa-play"></i> Run Simulation</button>
+                    <div id="simulation-results"></div>
+                </div>
+            </section>
+
+            <!-- Forecast Tab -->
+            <section id="forecast" class="tab-content">
+                <div class="forecast-controls">
+                    <h3><i class="fas fa-chart-line"></i> Air Quality Forecast</h3>
+                    <div class="form-group">
+                        <label>Model Type:</label>
+                        <select id="forecast-model">
+                            <option value="gaussian">Gaussian Plume Model</option>
+                            <option value="advanced">Advanced Dispersion Model</option>
+                        </select>
+                    </div>
+                    <button onclick="runForecast()" class="btn-primary"><i class="fas fa-play"></i> Run Forecast</button>
+                    <div id="forecast-results"></div>
+                </div>
+            </section>
+
+            <!-- Export Tab -->
+            <section id="export" class="tab-content">
+                <div class="export-controls">
+                    <h3><i class="fas fa-download"></i> Export Results</h3>
+                    <div class="form-group">
+                        <label>Format:</label>
+                        <select id="export-format">
+                            <option value="shapefile">ESRI Shapefile</option>
+                            <option value="geojson">GeoJSON</option>
+                            <option value="csv">CSV</option>
+                        </select>
+                    </div>
+                    <button onclick="exportResults()" class="btn-primary"><i class="fas fa-download"></i> Export</button>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/leaflet.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/chart.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+</body>
+</html>

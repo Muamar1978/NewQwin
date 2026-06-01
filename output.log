@@ -1,0 +1,90 @@
+OpenBLAS WARNING - could not determine the L2 cache size on this system, assuming 256k
+Initializing default data...
+  Attempting to load /workspace/road1.shp...
+  [OK] Road 1 loaded.
+  Attempting to load /workspace/road2.shp...
+  [OK] Road 2 loaded.
+  Attempting to load /workspace/road3.shp...
+  [OK] Road 3 loaded.
+  Attempting to load /workspace/road4.shp...
+  [OK] Road 4 loaded.
+  [OK] Weather data loaded.
+  Attempting to load study area: /workspace/study_area.shp...
+  [OK] Study area loaded.
+  Attempting to load pollution data: /workspace/pollution_results.csv...
+  Attempting to load pollution data: /workspace/Hotspots_AllPollutants_GIS.csv...
+Air Quality Dispersion Model - Modularized Version
+ * Serving Flask app 'app'
+ * Debug mode: on
+WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
+ * Running on http://127.0.0.1:5000
+Press CTRL+C to quit
+ * Restarting with stat
+OpenBLAS WARNING - could not determine the L2 cache size on this system, assuming 256k
+ * Debugger is active!
+ * Debugger PIN: 869-631-082
+127.0.0.1 - - [01/Jun/2026 14:07:33] "GET /api/data-status HTTP/1.1" 200 -
+127.0.0.1 - - [01/Jun/2026 14:08:41] "GET /api/data-status HTTP/1.1" 200 -
+127.0.0.1 - - [01/Jun/2026 14:12:02] "GET /api/data-status HTTP/1.1" 200 -
+127.0.0.1 - - [01/Jun/2026 14:13:29] "GET /api/data-status HTTP/1.1" 200 -
+127.0.0.1 - - [01/Jun/2026 14:21:16] "GET /api/data-status HTTP/1.1" 200 -
+127.0.0.1 - - [01/Jun/2026 14:21:18] "GET / HTTP/1.1" 500 -
+Traceback (most recent call last):
+  File "/usr/local/lib/python3.12/site-packages/flask/app.py", line 1536, in __call__
+    return self.wsgi_app(environ, start_response)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/flask/app.py", line 1514, in wsgi_app
+    response = self.handle_exception(e)
+               ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/flask_cors/extension.py", line 176, in wrapped_function
+    return cors_after_request(app.make_response(f(*args, **kwargs)))
+                                                ^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/flask/app.py", line 1511, in wsgi_app
+    response = self.full_dispatch_request()
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/flask/app.py", line 919, in full_dispatch_request
+    rv = self.handle_user_exception(e)
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/flask_cors/extension.py", line 176, in wrapped_function
+    return cors_after_request(app.make_response(f(*args, **kwargs)))
+                                                ^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/flask/app.py", line 917, in full_dispatch_request
+    rv = self.dispatch_request()
+         ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/flask/app.py", line 902, in dispatch_request
+    return self.ensure_sync(self.view_functions[rule.endpoint])(**view_args)  # type: ignore[no-any-return]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/app.py", line 34, in index
+    return render_template('index.html')
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/flask/templating.py", line 149, in render_template
+    template = app.jinja_env.get_or_select_template(template_name_or_list)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/jinja2/environment.py", line 1087, in get_or_select_template
+    return self.get_template(template_name_or_list, parent, globals)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/jinja2/environment.py", line 1016, in get_template
+    return self._load_template(name, globals)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/jinja2/environment.py", line 975, in _load_template
+    template = self.loader.load(self, name, self.make_globals(globals))
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/jinja2/loaders.py", line 126, in load
+    source, filename, uptodate = self.get_source(environment, name)
+                                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/flask/templating.py", line 65, in get_source
+    return self._get_source_fast(environment, template)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/flask/templating.py", line 99, in _get_source_fast
+    raise TemplateNotFound(template)
+jinja2.exceptions.TemplateNotFound: index.html
+127.0.0.1 - - [01/Jun/2026 14:22:14] "GET / HTTP/1.1" 200 -
+127.0.0.1 - - [01/Jun/2026 14:23:12] "GET /api/data-status HTTP/1.1" 200 -
+127.0.0.1 - - [01/Jun/2026 14:23:15] "GET / HTTP/1.1" 200 -
+127.0.0.1 - - [01/Jun/2026 14:27:32] "GET / HTTP/1.1" 200 -
+127.0.0.1 - - [01/Jun/2026 14:29:28] "GET / HTTP/1.1" 200 -
+127.0.0.1 - - [01/Jun/2026 14:29:31] "GET /static/js/main.js HTTP/1.1" 200 -
+127.0.0.1 - - [01/Jun/2026 14:29:34] "GET /api/data-status HTTP/1.1" 200 -
+127.0.0.1 - - [01/Jun/2026 14:29:37] "GET /static/css/main.css HTTP/1.1" 200 -
+127.0.0.1 - - [01/Jun/2026 14:29:42] "GET / HTTP/1.1" 200 -
+127.0.0.1 - - [01/Jun/2026 14:30:07] "GET /static/js/leaflet.js HTTP/1.1" 200 -

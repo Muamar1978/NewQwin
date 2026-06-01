@@ -16,63 +16,91 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from config import Config
 
+# Check TensorFlow availability at module level
+try:
+    import tensorflow as tf
+    from tensorflow.keras import layers as keras_layers
+    from tensorflow.keras.layers import LayerNormalization, Add, Dropout, Flatten, Dense, LSTM, MultiHeadAttention, Input
+    from tensorflow.keras.optimizers import Adam
+    from tensorflow.keras.callbacks import EarlyStopping
+    from tensorflow.keras.models import Model
+    TF_AVAILABLE = True
+except ImportError:
+    TF_AVAILABLE = False
+    tf = None
+    keras_layers = None
+    LayerNormalization = None
+    Add = None
+    Dropout = None
+    Flatten = None
+    Dense = None
+    LSTM = None
+    MultiHeadAttention = None
+    Input = None
+    Adam = None
+    EarlyStopping = None
+    Model = None
+
 # Top-level tensorflow imports disabled to prevent hanging on some systems
 class MockLayer:
     def __init__(self, *args, **kwargs): pass
-TF_BASE_LAYER = MockLayer
-layers = type('Mock', (), {'Dense': MockLayer})
 
-class GRN(TF_BASE_LAYER):
-    """Gated Residual Network used in TFT to provide non-linear processing"""
-    def __init__(self, units, **kwargs):
-        super().__init__(**kwargs)
-        from tensorflow.keras import layers
-        self.dense1 = layers.Dense(units, activation='elu')
-        self.dense2 = layers.Dense(units, activation='elu')
-        self.gate = layers.Dense(units, activation='sigmoid')
-        from tensorflow.keras.layers import LayerNormalization
-        self.norm = LayerNormalization()
-        self.res = layers.Dense(units)
+if TF_AVAILABLE:
+    TF_BASE_LAYER = tf.keras.layers.Layer
+else:
+    TF_BASE_LAYER = MockLayer
+    layers = type('Mock', (), {'Dense': MockLayer})
 
-    def call(self, inputs):
-        from tensorflow.keras.layers import Add
-        x = self.dense1(inputs)
-        x = self.dense2(x)
-        g = self.gate(inputs)
-        # Element-wise multiplication (gating)
-        out = x * g
-        # Residual connection + Normalization
-        return self.norm(Add()([out, self.res(inputs)]))
+if TF_AVAILABLE:
+    class GRN(tf.keras.layers.Layer):
+        """Gated Residual Network used in TFT to provide non-linear processing"""
+        def __init__(self, units, **kwargs):
+            super().__init__(**kwargs)
+            self.dense1 = keras_layers.Dense(units, activation='elu')
+            self.dense2 = keras_layers.Dense(units, activation='elu')
+            self.gate = keras_layers.Dense(units, activation='sigmoid')
+            self.norm = LayerNormalization()
+            self.res = keras_layers.Dense(units)
 
-class VSN(TF_BASE_LAYER):
-    """Variable Selection Network to weight the importance of different input features"""
-    def __init__(self, num_inputs, units, **kwargs):
-        super().__init__(**kwargs)
-        self.num_inputs = num_inputs
-        self.grns = [GRN(units) for _ in range(num_inputs)]
-        from tensorflow.keras import layers
-        self.weights_dense = layers.Dense(num_inputs, activation='softmax')
+        def call(self, inputs):
+            x = self.dense1(inputs)
+            x = self.dense2(x)
+            g = self.gate(inputs)
+            # Element-wise multiplication (gating)
+            out = x * g
+            # Residual connection + Normalization
+            return self.norm(Add()([out, self.res(inputs)]))
 
-    def call(self, inputs):
-        import tensorflow as tf
-        # inputs shape: (batch, seq_len, num_inputs)
-        processed = []
-        for i in range(self.num_inputs):
-            # Process each feature through its own GRN
-            feat = inputs[:, :, i:i+1]
-            processed.append(self.grns[i](feat))
-        
-        # Stack processed features: (batch, seq_len, num_inputs, units)
-        processed = tf.stack(processed, axis=2)
-        
-        # Calculate weights for each feature: (batch, seq_len, num_inputs)
-        # We use a simple pooling of the input to decide weights
-        weights = self.weights_dense(tf.reduce_mean(inputs, axis=1)) # (batch, num_inputs)
-        weights = tf.expand_dims(tf.expand_dims(weights, 1), -1) # (batch, 1, num_inputs, 1)
-        
-        # Weighted sum of processed features
-        weighted = processed * weights
-        return tf.reduce_sum(weighted, axis=2) # (batch, seq_len, units)
+    class VSN(tf.keras.layers.Layer):
+        """Variable Selection Network to weight the importance of different input features"""
+        def __init__(self, num_inputs, units, **kwargs):
+            super().__init__(**kwargs)
+            self.num_inputs = num_inputs
+            self.grns = [GRN(units) for _ in range(num_inputs)]
+            self.weights_dense = keras_layers.Dense(num_inputs, activation='softmax')
+
+        def call(self, inputs):
+            # inputs shape: (batch, seq_len, num_inputs)
+            processed = []
+            for i in range(self.num_inputs):
+                # Process each feature through its own GRN
+                feat = inputs[:, :, i:i+1]
+                processed.append(self.grns[i](feat))
+            
+            # Stack processed features: (batch, seq_len, num_inputs, units)
+            processed = tf.stack(processed, axis=2)
+            
+            # Calculate weights for each feature: (batch, seq_len, num_inputs)
+            # We use a simple pooling of the input to decide weights
+            weights = self.weights_dense(tf.reduce_mean(inputs, axis=1)) # (batch, num_inputs)
+            weights = tf.expand_dims(tf.expand_dims(weights, 1), -1) # (batch, 1, num_inputs, 1)
+            
+            # Weighted sum of processed features
+            weighted = processed * weights
+            return tf.reduce_sum(weighted, axis=2) # (batch, seq_len, units)
+else:
+    GRN = MockLayer
+    VSN = MockLayer
 
 class AirQualityForecastModel:
     def __init__(self, sequence_length=24, forecast_horizon=24):
@@ -94,9 +122,15 @@ class AirQualityForecastModel:
             df['hour'], df['day'], df['month'] = ts.dt.hour, ts.dt.dayofweek, ts.dt.month
             
             # If HOUR, DAY, MONTH columns exist, prioritize them or fill missing from timestamp
-            current_year = datetime.now().year
+            # Use a fixed leap year (2024) to ensure consistent day-of-week and leap-year math
+            reference_year = 2024
             if all(col in df.columns for col in ['HOUR', 'DAY', 'MONTH']):
-                df['timestamp'] = pd.to_datetime(f'{current_year}-' + df['MONTH'].astype(str) + '-' + df['DAY'].astype(str) + ' ' + df['HOUR'].astype(str) + ':00:00', errors='coerce')
+                # Try to infer year from data if available, otherwise use reference year
+                if 'YEAR' in df.columns:
+                    year_val = df['YEAR'].iloc[0] if len(df) > 0 else reference_year
+                else:
+                    year_val = reference_year
+                df['timestamp'] = pd.to_datetime(f'{year_val}-' + df['MONTH'].astype(str) + '-' + df['DAY'].astype(str) + ' ' + df['HOUR'].astype(str) + ':00:00', errors='coerce')
                 df['hour'], df['day'], df['month'] = df['HOUR'], df['DAY'] - 1, df['MONTH']
             else:
                 # Handle cases where ts might have failed to parse
@@ -149,12 +183,18 @@ class AirQualityForecastModel:
         
         if weather_df is not None:
             weather_agg = weather_df.copy()
-            current_year = datetime.now().year
+            # Use a fixed leap year (2024) to ensure consistent day-of-week and leap-year math
+            reference_year = 2024
             if 'HOUR' in weather_agg.columns and 'DAY' in weather_agg.columns and 'MONTH' in weather_agg.columns:
-                weather_agg['timestamp'] = pd.to_datetime(f'{current_year}-' + weather_agg['MONTH'].astype(str) + '-' + weather_agg['DAY'].astype(str) + ' ' + weather_agg['HOUR'].astype(str) + ':00:00', errors='coerce')
+                # Try to infer year from data if available, otherwise use reference year
+                if 'YEAR' in weather_agg.columns:
+                    year_val = weather_agg['YEAR'].iloc[0] if len(weather_agg) > 0 else reference_year
+                else:
+                    year_val = reference_year
+                weather_agg['timestamp'] = pd.to_datetime(f'{year_val}-' + weather_agg['MONTH'].astype(str) + '-' + weather_agg['DAY'].astype(str) + ' ' + weather_agg['HOUR'].astype(str) + ':00:00', errors='coerce')
                 weather_agg = weather_agg.set_index('timestamp')
             elif 'timestamp' not in weather_agg.columns:
-                weather_agg['timestamp'] = pd.date_range(start=f'{current_year}-01-01', periods=len(weather_agg), freq='h')
+                weather_agg['timestamp'] = pd.date_range(start=f'{reference_year}-01-01', periods=len(weather_agg), freq='h')
                 weather_agg = weather_agg.set_index('timestamp')
             
             # Remove any duplicate timestamps in weather data as well
@@ -180,12 +220,18 @@ class AirQualityForecastModel:
         weather_agg = pd.DataFrame()
         if weather_df is not None:
             weather_agg = weather_df.copy()
-            current_year = datetime.now().year
+            # Use a fixed leap year (2024) to ensure consistent day-of-week and leap-year math
+            reference_year = 2024
             if 'HOUR' in weather_agg.columns and 'DAY' in weather_agg.columns and 'MONTH' in weather_agg.columns:
-                weather_agg['timestamp'] = pd.to_datetime(f'{current_year}-' + weather_agg['MONTH'].astype(str) + '-' + weather_agg['DAY'].astype(str) + ' ' + weather_agg['HOUR'].astype(str) + ':00:00', errors='coerce')
+                # Try to infer year from data if available, otherwise use reference year
+                if 'YEAR' in weather_agg.columns:
+                    year_val = weather_agg['YEAR'].iloc[0] if len(weather_agg) > 0 else reference_year
+                else:
+                    year_val = reference_year
+                weather_agg['timestamp'] = pd.to_datetime(f'{year_val}-' + weather_agg['MONTH'].astype(str) + '-' + weather_agg['DAY'].astype(str) + ' ' + weather_agg['HOUR'].astype(str) + ':00:00', errors='coerce')
                 weather_agg = weather_agg.set_index('timestamp')
             elif 'timestamp' not in weather_agg.columns:
-                weather_agg['timestamp'] = pd.date_range(start=f'{current_year}-01-01', periods=len(weather_agg), freq='h')
+                weather_agg['timestamp'] = pd.date_range(start=f'{reference_year}-01-01', periods=len(weather_agg), freq='h')
                 weather_agg = weather_agg.set_index('timestamp')
             weather_agg = weather_agg.resample('h').mean().ffill()
             weather_agg = weather_agg[~weather_agg.index.duplicated(keep='first')]
@@ -194,9 +240,10 @@ class AirQualityForecastModel:
             pollution_df = pollution_df[~pollution_df.index.duplicated(keep='first')]
             merged = pollution_df.join(weather_agg, how='inner')
         else:
-            current_year = datetime.now().year
+            # Use a fixed leap year (2024) to ensure consistent day-of-week and leap-year math
+            reference_year = 2024
             pollution_df_indexed = pollution_df.copy()
-            pollution_df_indexed['timestamp'] = pd.date_range(start=f'{current_year}-01-01', periods=len(pollution_df_indexed), freq='h')
+            pollution_df_indexed['timestamp'] = pd.date_range(start=f'{reference_year}-01-01', periods=len(pollution_df_indexed), freq='h')
             pollution_df_indexed = pollution_df_indexed.set_index('timestamp')
             pollution_df_indexed = pollution_df_indexed[~pollution_df_indexed.index.duplicated(keep='first')]
             merged = pollution_df_indexed.join(weather_agg, how='inner')
