@@ -6,14 +6,15 @@ import uuid
 import zipfile
 from datetime import datetime
 from config import Config
-from state import session_data, data_lock
-from gaussian_model import GaussianPlumeModel
+from state import get_session_data, update_session_data
+from models.gaussian_model import GaussianPlumeModel
 from services.weather_service import fetch_live_weather
 
 sim_bp = Blueprint('simulation', __name__)
 
 @sim_bp.route('/api/simulate', methods=['POST'])
 def simulate():
+    session_data = get_session_data()
     roads = session_data.get('roads', [])
     weather_data = session_data.get('weather_data')
     if not roads or weather_data is None:
@@ -66,16 +67,17 @@ def simulate():
     all_concs = [r['concentration'] for r in results]
     max_c = float(max(all_concs)) if all_concs else 0.0
     
-    with data_lock:
-        session_data['simulation_results'].append({
-            'id': result_id, 'road_ids': road_ids, 'pollutant': pollutant,
-            'traffic_count': traffic_count, 'buffer_distance': buffer_distance,
-            'max_concentration': max_c,
-            'timestamp': datetime.now().isoformat()
-        })
-        # Limit history to latest 20 entries to prevent memory bloat
-        if len(session_data['simulation_results']) > 20:
-            session_data['simulation_results'] = session_data['simulation_results'][-20:]
+    sim_results = session_data.get('simulation_results', [])
+    sim_results.append({
+        'id': result_id, 'road_ids': road_ids, 'pollutant': pollutant,
+        'traffic_count': traffic_count, 'buffer_distance': buffer_distance,
+        'max_concentration': max_c,
+        'timestamp': datetime.now().isoformat()
+    })
+    # Limit history to latest 20 entries to prevent memory bloat
+    if len(sim_results) > 20:
+        sim_results = sim_results[-20:]
+    update_session_data({'simulation_results': sim_results})
     
     road_label = '-'.join(map(str, road_ids))
     output_path = os.path.join(Config.OUTPUT_DIR, f'concentration_roads{road_label}.geojson')
@@ -112,23 +114,25 @@ def simulate():
 
 @sim_bp.route('/api/simulation-history', methods=['GET'])
 def simulation_history():
+    session_data = get_session_data()
     results = session_data.get('simulation_results', [])
     return jsonify({'count': len(results), 'results': results})
 
 @sim_bp.route('/api/simulation-history/<result_id>', methods=['DELETE'])
 def delete_simulation_result(result_id):
-    with data_lock:
-        session_data['simulation_results'] = [r for r in session_data.get('simulation_results', []) if r.get('id') != result_id]
+    session_data = get_session_data()
+    sim_results = [r for r in session_data.get('simulation_results', []) if r.get('id') != result_id]
+    update_session_data({'simulation_results': sim_results})
     return jsonify({'success': True, 'message': f'Deleted result {result_id}'})
 
 @sim_bp.route('/api/clear-history', methods=['POST'])
 def clear_simulation_history():
-    with data_lock:
-        session_data['simulation_results'] = []
+    update_session_data({'simulation_results': []})
     return jsonify({'success': True, 'message': 'History cleared'})
 
 @sim_bp.route('/api/shapefile', methods=['POST'])
 def create_shapefile():
+    session_data = get_session_data()
     roads = session_data.get('roads', [])
     weather_data = session_data.get('weather_data')
     if not roads or weather_data is None: return jsonify({'error': 'Data not loaded'}), 500

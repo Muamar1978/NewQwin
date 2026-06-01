@@ -1,24 +1,60 @@
-import threading
-from pyproj import Transformer
+from flask_caching import Cache
+import json
+import os
 from config import Config
 
-data_lock = threading.Lock()
+# This cache object will be initialized by the Flask app in app.py
+# We create a placeholder here that gets bound to the app's cache
+cache = Cache()
 
-session_data = {
-    'roads': [],
-    'weather_data': None,
-    'study_area': None,
-    'pollution_data': None,
-    'historical_pollution': None,
-    'forecast_model': None,
-    'crs': Config.DEFAULT_CRS,
-    'simulation_results': [],
-    'emission_factors': None,
-    'last_forecast': None,
-    'coordinate_data': None,
-    'data_scaler': None,
-    'pollutant_name': None
-}
+def init_cache(app):
+    """Initialize the cache with the Flask app."""
+    cache.init_app(app, config={
+        'CACHE_TYPE': 'filesystem',
+        'CACHE_DIR': os.path.join(Config.DATA_DIR, 'cache'),
+        'CACHE_DEFAULT_TIMEOUT': 3600  # 1 hour default timeout
+    })
 
-# Shared transformer that can be updated
-transformer = Transformer.from_crs(Config.DEFAULT_CRS, Config.WGS84_CRS, always_xy=True)
+def get_session_data(session_id='default'):
+    """Get session data from cache."""
+    key = f'session_{session_id}'
+    data = cache.get(key)
+    if data is None:
+        # Initialize default session data if not exists
+        data = {
+            'roads': [],
+            'weather_data': None,
+            'study_area': None,
+            'pollution_data': None,
+            'historical_pollution': None,
+            'forecast_model': None,
+            'crs': Config.DEFAULT_CRS,
+            'simulation_results': [],
+            'emission_factors': None,
+            'last_forecast': None,
+            'coordinate_data': None,
+            'data_scaler': None,
+            'pollutant_name': None
+        }
+        cache.set(key, data)
+    return data
+
+def set_session_data(data, session_id='default'):
+    """Set session data in cache."""
+    key = f'session_{session_id}'
+    cache.set(key, data)
+
+def update_session_data(updates, session_id='default'):
+    """Update specific fields in session data."""
+    data = get_session_data(session_id)
+    data.update(updates)
+    set_session_data(data, session_id)
+    return data
+
+# Shared transformer - will be created dynamically based on CRS
+def get_transformer(crs=None):
+    """Get transformer for the specified CRS."""
+    from pyproj import Transformer
+    if crs is None:
+        crs = Config.DEFAULT_CRS
+    return Transformer.from_crs(crs, Config.WGS84_CRS, always_xy=True)

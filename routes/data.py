@@ -8,7 +8,7 @@ from pyproj import Transformer
 # print("  Data Route: Importing fiona...")
 # import fiona
 from config import Config
-from state import session_data, data_lock, transformer
+from state import get_session_data, update_session_data, get_transformer, set_session_data
 import state # To update transformer globally
 import numpy as np
 from services.weather_service import fetch_live_weather, fetch_live_pollution
@@ -22,17 +22,23 @@ data_bp = Blueprint('data', __name__)
 @data_bp.route('/api/reset', methods=['POST'])
 def reset_simulation():
     try:
-        with data_lock:
-            for key in list(session_data.keys()):
-                if key == 'crs':
-                    session_data[key] = Config.DEFAULT_CRS
-                elif key == 'roads' or key == 'simulation_results':
-                    session_data[key] = []
-                else:
-                    session_data[key] = None
-            
-            # Reset the global transformer to default
-            state.transformer = Transformer.from_crs(Config.DEFAULT_CRS, Config.WGS84_CRS, always_xy=True)
+        # Reset session data using cache
+        default_data = {
+            'roads': [],
+            'weather_data': None,
+            'study_area': None,
+            'pollution_data': None,
+            'historical_pollution': None,
+            'forecast_model': None,
+            'crs': Config.DEFAULT_CRS,
+            'simulation_results': [],
+            'emission_factors': None,
+            'last_forecast': None,
+            'coordinate_data': None,
+            'data_scaler': None,
+            'pollutant_name': None
+        }
+        set_session_data(default_data)
         
         if os.path.exists(Config.OUTPUT_DIR):
             for f in os.listdir(Config.OUTPUT_DIR):
@@ -137,20 +143,23 @@ def upload_roads():
         if gdf.crs is None:
             gdf = gdf.set_crs(custom_crs)
         
+        session_data = get_session_data()
         if custom_crs != session_data.get('crs', Config.DEFAULT_CRS):
-            with data_lock:
-                session_data['crs'] = custom_crs
-                state.transformer = Transformer.from_crs(custom_crs, Config.WGS84_CRS, always_xy=True)
+            session_data['crs'] = custom_crs
+            state.transformer = Transformer.from_crs(custom_crs, Config.WGS84_CRS, always_xy=True)
+            update_session_data({'crs': custom_crs})
         
         gdf = gdf.to_crs(Config.DEFAULT_CRS)
         
-        with data_lock:
-            if len(session_data['roads']) >= road_id:
-                session_data['roads'][road_id - 1] = gdf
-            else:
-                while len(session_data['roads']) < road_id:
-                    session_data['roads'].append(None)
-                session_data['roads'][road_id - 1] = gdf
+        session_data = get_session_data()
+        roads = session_data.get('roads', [])
+        if len(roads) >= road_id:
+            roads[road_id - 1] = gdf
+        else:
+            while len(roads) < road_id:
+                roads.append(None)
+            roads[road_id - 1] = gdf
+        update_session_data({'roads': roads})
         
         return jsonify({
             'success': True,
@@ -201,8 +210,7 @@ def upload_weather():
         if 'DAY' not in df.columns: df['DAY'] = 1
         if 'HOUR' not in df.columns: df['HOUR'] = 12
         
-        with data_lock:
-            session_data['weather_data'] = df
+        update_session_data({'weather_data': df})
         
         return jsonify({
             'success': True,
@@ -246,8 +254,7 @@ def upload_study_area():
         if gdf.crs is None: gdf = gdf.set_crs(custom_crs)
         
         study_area = gdf.to_crs(Config.DEFAULT_CRS)
-        with data_lock:
-            session_data['study_area'] = study_area
+        update_session_data({'study_area': study_area})
         
         bounds = study_area.total_bounds
         center_x, center_y = (bounds[0] + bounds[2]) / 2, (bounds[1] + bounds[3]) / 2
@@ -279,9 +286,7 @@ def upload_pollution():
             df = pd.read_excel(filepath)
         if not all(c in df.columns for c in ['POINT_X', 'POINT_Y']):
             return jsonify({'error': 'Missing POINT_X or POINT_Y'}), 400
-        with data_lock:
-            session_data['pollution_data'] = df
-            session_data['crs'] = custom_crs
+        update_session_data({'pollution_data': df, 'crs': custom_crs})
         pollutants = [c for c in df.columns if c in ['CO', 'NOx', 'PM10', 'PM2.5', 'PM25']]
         return jsonify({'success': True, 'records': len(df), 'pollutants': pollutants})
     except Exception as e:
@@ -299,8 +304,7 @@ def upload_emission_factors():
             return jsonify({'error': 'Missing required columns'}), 400
         factors = df.to_dict('records')
         pollutants = df['pollutant'].unique().tolist()
-        with data_lock:
-            session_data['emission_factors'] = factors
+        update_session_data({'emission_factors': factors})
         return jsonify({
             'success': True, 
             'message': 'Emission factors uploaded successfully',
@@ -313,15 +317,17 @@ def upload_emission_factors():
 
 @data_bp.route('/api/reset-data', methods=['POST'])
 def reset_data():
-    with data_lock:
-        session_data['roads'] = []
-        session_data['weather_data'] = None
-        session_data['study_area'] = None
-        session_data['pollution_data'] = None
-        session_data['historical_pollution'] = None
-        session_data['forecast_model'] = None
-        session_data['emission_factors'] = None
-        session_data['crs'] = Config.DEFAULT_CRS
+    default_data = {
+        'roads': [],
+        'weather_data': None,
+        'study_area': None,
+        'pollution_data': None,
+        'historical_pollution': None,
+        'forecast_model': None,
+        'emission_factors': None,
+        'crs': Config.DEFAULT_CRS
+    }
+    set_session_data(default_data)
     
     if os.path.exists(Config.UPLOAD_DIR):
         shutil.rmtree(Config.UPLOAD_DIR)
@@ -330,6 +336,7 @@ def reset_data():
 
 @data_bp.route('/api/data-status', methods=['GET'])
 def data_status():
+    session_data = get_session_data()
     return jsonify({
         'roads': {'count': len(session_data.get('roads', [])), 'loaded': len(session_data.get('roads', [])) > 0},
         'weather': {'loaded': session_data.get('weather_data') is not None},
@@ -340,6 +347,7 @@ def data_status():
 
 @data_bp.route('/api/roads')
 def get_roads():
+    session_data = get_session_data()
     roads = session_data.get('roads', [])
     if not roads: return jsonify({'success': False, 'message': 'No road data loaded'}), 200
     
@@ -376,6 +384,7 @@ def get_roads():
 
 @data_bp.route('/api/weather')
 def get_weather():
+    session_data = get_session_data()
     weather_data = session_data.get('weather_data')
     if weather_data is None: return jsonify({'success': False, 'message': 'No weather data loaded.'}), 200
     
@@ -443,6 +452,7 @@ def get_live_pollution():
 
 @data_bp.route('/api/study-area')
 def get_study_area():
+    session_data = get_session_data()
     study_area = session_data.get('study_area')
     if study_area is None: return jsonify({'success': False, 'message': 'No study area found.'}), 200
     
@@ -463,6 +473,7 @@ def get_study_area():
 @data_bp.route('/api/pollution-data')
 def get_pollution_data():
     """Return pollution data as GeoJSON for the map layer."""
+    session_data = get_session_data()
     pollution_data = session_data.get('pollution_data')
     if pollution_data is None:
         return jsonify({'type': 'FeatureCollection', 'features': []})
@@ -507,10 +518,12 @@ def initialize_default_data():
                 # Re-project to internal CRS if needed (though road*.shp are likely already in Zone 38N)
                 gdf = gdf.to_crs(Config.DEFAULT_CRS)
                 
-                with data_lock:
-                    while len(session_data['roads']) < i:
-                        session_data['roads'].append(None)
-                    session_data['roads'][i-1] = gdf
+                session_data = get_session_data()
+                roads = session_data.get('roads', [])
+                while len(roads) < i:
+                    roads.append(None)
+                roads[i-1] = gdf
+                update_session_data({'roads': roads})
                 print(f"  [OK] Road {i} loaded.")
             except Exception as e:
                 print(f"  [ERROR] Failed to load road{i}.shp: {e}")
@@ -535,8 +548,7 @@ def initialize_default_data():
                 if 'DAY' not in df.columns: df['DAY'] = 1
                 if 'HOUR' not in df.columns: df['HOUR'] = 12
                 
-                with data_lock:
-                    session_data['weather_data'] = df
+                update_session_data({'weather_data': df})
                 print("  [OK] Weather data loaded.")
             else:
                 print("  [WARNING] ERA5_P0INTS.csv missing required columns.")
@@ -553,8 +565,7 @@ def initialize_default_data():
             if gdf.crs is None:
                 gdf = gdf.set_crs(Config.DEFAULT_CRS)
             gdf = gdf.to_crs(Config.DEFAULT_CRS)
-            with data_lock:
-                session_data['study_area'] = gdf
+            update_session_data({'study_area': gdf})
             print("  [OK] Study area loaded.")
         except Exception as e:
             print(f"  [ERROR] Failed to load study_area.shp: {e}")

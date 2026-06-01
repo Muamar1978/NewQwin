@@ -1,15 +1,27 @@
 from flask import Flask, render_template
 from flask_cors import CORS
+from flask_caching import Cache
 from config import Config
-from routes.data import data_bp, initialize_default_data
+from routes.data import data_bp
 from routes.simulation import sim_bp
 from routes.forecast import forecast_bp
 from routes.export import export_bp
+from state import init_cache
 import os
 
 app = Flask(__name__)
 CORS(app)
 app.config.from_object(Config)
+
+# Initialize Flask-Caching for thread-safe state management
+cache = Cache(app, config={
+    'CACHE_TYPE': 'filesystem',
+    'CACHE_DIR': os.path.join(Config.DATA_DIR, 'cache'),
+    'CACHE_DEFAULT_TIMEOUT': 3600
+})
+
+# Initialize the shared cache object in state module
+init_cache(app)
 
 # Register Blueprints
 app.register_blueprint(data_bp)
@@ -23,7 +35,7 @@ for directory in [Config.OUTPUT_DIR, Config.UPLOAD_DIR]:
         os.makedirs(directory)
 
 # Data initialization is now manual - users will upload data via the web interface
-initialize_default_data() 
+# Removed automatic initialization to allow user-controlled data management
 
 @app.errorhandler(413)
 def request_entity_too_large(error):

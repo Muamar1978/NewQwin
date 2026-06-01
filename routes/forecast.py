@@ -5,9 +5,9 @@ import numpy as np
 import zipfile
 from datetime import datetime
 from config import Config
-from state import session_data, data_lock
-from forecast_model import AirQualityForecastModel
-from gaussian_model import GaussianPlumeModel
+from state import get_session_data, update_session_data
+from models.forecast_model import AirQualityForecastModel
+from models.gaussian_model import GaussianPlumeModel
 import geopandas as gpd
 # from sklearn.preprocessing import MinMaxScaler
 
@@ -15,6 +15,7 @@ forecast_bp = Blueprint('forecast', __name__)
 
 @forecast_bp.route('/api/forecast', methods=['GET'])
 def get_forecast():
+    session_data = get_session_data()
     model = session_data.get('forecast_model')
     if not model or not model.is_trained:
         return jsonify({'error': 'Model not trained. Please train the model first.'}), 400
@@ -43,12 +44,13 @@ def get_forecast():
             res['X (m)'] = float(mx)
             res['Y (m)'] = float(my)
             
-        with data_lock:
-            session_data['last_forecast'] = {
+        update_session_data({
+            'last_forecast': {
                 'predictions': results,
                 'pollutants': model.pollutants,
                 'pollutant_name': session_data.get('pollutant_name', 'Unknown')
             }
+        })
             
         return jsonify({
             'success': True,
@@ -62,6 +64,7 @@ def get_forecast():
 
 @forecast_bp.route('/api/forecast/status', methods=['GET'])
 def get_forecast_status():
+    session_data = get_session_data()
     model = session_data.get('forecast_model')
     return jsonify({
         'has_historical_data': session_data.get('historical_pollution') is not None,
@@ -72,6 +75,7 @@ def get_forecast_status():
 
 @forecast_bp.route('/api/forecast-shapefile', methods=['POST'])
 def export_forecast_shapefile():
+    session_data = get_session_data()
     forecast_data = session_data.get('last_forecast')
     if not forecast_data: return jsonify({'error': 'No forecast data available.'}), 400
     
@@ -156,10 +160,11 @@ def upload_historical():
 
         pollutant_name = df['Pollutant'].iloc[0] if 'Pollutant' in df.columns else 'Unknown'
         
-        with data_lock:
-            session_data['historical_pollution'] = df
-            session_data['coordinate_data'] = coord_df
-            session_data['pollutant_name'] = pollutant_name
+        update_session_data({
+            'historical_pollution': df,
+            'coordinate_data': coord_df,
+            'pollutant_name': pollutant_name
+        })
             
         return jsonify({'success': True, 'records': len(df), 'pollutant': pollutant_name})
     except Exception as e:
@@ -167,6 +172,7 @@ def upload_historical():
 
 @forecast_bp.route('/api/forecast/train', methods=['POST'])
 def train_forecast():
+    session_data = get_session_data()
     data = request.json or {}
     seq_len = data.get('sequence_length', 12)
     horizon = data.get('forecast_horizon', 6)
@@ -187,14 +193,14 @@ def train_forecast():
         print(f"DEBUG: Starting training with {len(df)} records and sequence_length={seq_len}")
         results = model.train(df, weather, epochs=epochs, batch_size=batch_size)
         print(f"DEBUG: Training completed successfully. Results: {results}")
-        with data_lock:
-            session_data['forecast_model'] = model
+        update_session_data({'forecast_model': model})
         return jsonify({'success': True, **results})
     except Exception as e:
         return jsonify({'success': False, 'error': f'Training failed: {str(e)}', 'val_rmse': None}), 500
 
 @forecast_bp.route('/api/export-ai-csv', methods=['POST'])
 def export_ai_csv():
+    session_data = get_session_data()
     roads = session_data.get('roads', [])
     weather_data = session_data.get('weather_data')
     if not roads or weather_data is None: return jsonify({'error': 'Data not loaded. Please upload roads and weather data.'}), 500
@@ -253,6 +259,7 @@ def export_ai_csv():
 
 @forecast_bp.route('/api/export-forecast-format', methods=['POST'])
 def export_forecast_format():
+    session_data = get_session_data()
     roads = session_data.get('roads', [])
     weather_data = session_data.get('weather_data')
     if not roads or weather_data is None: return jsonify({'error': 'Data not loaded.'}), 400
